@@ -21,6 +21,11 @@ export default async function StreetPage({
       slug: streets.slug,
       description: streets.description,
       status: streets.status,
+      contributedById: streets.contributedById,
+      contributorName: streets.contributorName,
+      tags: streets.tags,
+      images: streets.images,
+      blogLinks: streets.blogLinks,
       createdAt: streets.createdAt,
       updatedAt: streets.updatedAt,
     }).from(streets).where(eq(streets.slug, slug));
