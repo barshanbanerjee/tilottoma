@@ -11,11 +11,19 @@ export default async function StreetPage({
 }) {
   const { slug } = await params;
   
-  let streetData = null;
+  let streetData: any = null;
 
   try {
-    // Query Drizzle for the specific street
-    const dbStreets = await db.select().from(streets).where(eq(streets.slug, slug));
+    // Query Drizzle for the specific street, excluding geom to avoid parsing bugs
+    const dbStreets = await db.select({
+      id: streets.id,
+      name: streets.name,
+      slug: streets.slug,
+      description: streets.description,
+      status: streets.status,
+      createdAt: streets.createdAt,
+      updatedAt: streets.updatedAt,
+    }).from(streets).where(eq(streets.slug, slug));
     const street = dbStreets[0];
 
     if (street) {
@@ -44,10 +52,13 @@ export default async function StreetPage({
       id: slug,
       name: titleCaseName,
       slug: slug,
-      description: "No historical data has been added for this street yet. Be the first to contribute its history!",
+      description: "No historical data has been added for this street yet. Be the first to uncover its past!",
       historicalNames: [],
-      sources: []
+      sources: [],
+      isIndexed: false
     };
+  } else {
+    streetData.isIndexed = true;
   }
 
   return (

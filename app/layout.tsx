@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import MainMap from "@/components/Map/MainMap";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,8 +17,6 @@ export const metadata = {
   description: "Discover the history behind Kolkata's streets",
 };
 
-import MapProvider from "@/components/Map/MapProvider";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,12 +24,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col overflow-hidden">
-        <MapProvider>
-          <MainMap>
-            {children}
-          </MainMap>
-        </MapProvider>
+      <body className="min-h-full flex flex-col">
+        {children}
       </body>
     </html>
   );

@@ -1,6 +1,6 @@
 import { db } from './index';
 import { streets, historicalNames, sources } from './schema';
-import postgres from 'postgres';
+import { sql } from 'drizzle-orm';
 
 async function seed() {
   console.log("🌱 Seeding database...");
@@ -15,10 +15,10 @@ async function seed() {
     name: "Park Street",
     slug: "park-street",
     description: "Park Street is a famous thoroughfare in Kolkata, India. It is known as the Food Street and the Street that Never Sleeps.",
-    // A simplified GeoJSON multilinestring for Park Street area
-    geom: 'SRID=4326;MULTILINESTRING((88.3512 22.5539, 88.3619 22.5501))', 
+    // Use raw SQL to insert EWKT format for PostGIS
+    geom: sql`ST_GeomFromEWKT('SRID=4326;MULTILINESTRING((88.3512 22.5539, 88.3619 22.5501))')`, 
     status: 'APPROVED',
-  }).returning();
+  }).returning({ id: streets.id });
 
   await db.insert(historicalNames).values({
     streetId: parkStreet.id,

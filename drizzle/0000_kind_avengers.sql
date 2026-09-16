@@ -28,7 +28,7 @@ CREATE TABLE "streets" (
 	"name" varchar(255) NOT NULL,
 	"slug" varchar(255) NOT NULL,
 	"description" text,
-	"geom" geometry(point) NOT NULL,
+	"geom" geometry(MultiLineString, 4326) NOT NULL,
 	"status" "status" DEFAULT 'PENDING' NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
