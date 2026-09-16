@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function AdminLoginPage() {
+function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,6 +42,51 @@ export default function AdminLoginPage() {
   };
 
   return (
+    <>
+      {error && (
+        <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+          ⚠️ {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="password" className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-1.5">
+            Admin Password
+          </label>
+          <input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter password..."
+            className="w-full px-3.5 py-2.5 border border-zinc-300 rounded-xl text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            autoFocus
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading || !password}
+          className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+        >
+          {loading ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Verifying...
+            </>
+          ) : (
+            'Unlock Admin Console'
+          )}
+        </button>
+      </form>
+    </>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
     <div className="min-h-screen bg-zinc-100 flex flex-col justify-center items-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-zinc-200 p-8">
         <div className="text-center mb-8">
@@ -58,44 +103,13 @@ export default function AdminLoginPage() {
           </p>
         </div>
 
-        {error && (
-          <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
-            ⚠️ {error}
+        <Suspense fallback={
+          <div className="py-8 flex justify-center items-center">
+            <span className="w-6 h-6 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="password" className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-1.5">
-              Admin Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password..."
-              className="w-full px-3.5 py-2.5 border border-zinc-300 rounded-xl text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              autoFocus
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || !password}
-            className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-          >
-            {loading ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Verifying...
-              </>
-            ) : (
-              'Unlock Admin Console'
-            )}
-          </button>
-        </form>
+        }>
+          <LoginForm />
+        </Suspense>
 
         <div className="mt-6 pt-6 border-t border-zinc-100 text-center">
           <Link href="/" className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors">
