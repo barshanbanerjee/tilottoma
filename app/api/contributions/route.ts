@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { streets, sources } from '@/db/schema';
 import { sql } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
@@ -42,6 +45,9 @@ export async function POST(req: Request) {
         );
       }
     }
+
+    // Revalidate admin page so the pending street shows up immediately
+    revalidatePath('/admin');
 
     return NextResponse.json({ success: true, id: insertedStreet.id });
   } catch (error) {

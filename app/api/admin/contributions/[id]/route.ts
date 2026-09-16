@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { streets, historicalNames, sources } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
+
+export const dynamic = 'force-dynamic';
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -11,6 +14,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (status && !['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    }
+
+    const [existing] = await db.select().from(streets).where(eq(streets.id, id));
+    if (!existing) {
+      return NextResponse.json({ error: 'Street not found' }, { status: 404 });
     }
 
     const updateData: Record<string, any> = {
@@ -34,11 +42,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       updateData.geom = sql`ST_GeomFromEWKT(${geomString})`;
     }
 
-    await db.update(streets)
+    const [updated] = await db.update(streets)
       .set(updateData)
-      .where(eq(streets.id, id));
+      .where(eq(streets.id, id))
+      .returning();
 
-    return NextResponse.json({ success: true, status });
+    // Trigger instant cache revalidation across the deployment
+    revalidatePath('/', 'layout');
+    revalidatePath('/admin');
+    if (updated?.slug) {
+      revalidatePath(`/street/${updated.slug}`);
+    }
+
+    return NextResponse.json({ success: true, street: updated });
   } catch (error) {
     console.error('Error updating contribution status:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -50,9 +66,18 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const resolvedParams = await params;
     const { id } = resolvedParams;
 
+    const [existing] = await db.select().from(streets).where(eq(streets.id, id));
+
     await db.delete(historicalNames).where(eq(historicalNames.streetId, id));
     await db.delete(sources).where(eq(sources.streetId, id));
     await db.delete(streets).where(eq(streets.id, id));
+
+    // Trigger instant cache revalidation across the deployment
+    revalidatePath('/', 'layout');
+    revalidatePath('/admin');
+    if (existing?.slug) {
+      revalidatePath(`/street/${existing.slug}`);
+    }
 
     return NextResponse.json({ success: true, message: 'Street deleted permanently' });
   } catch (error) {

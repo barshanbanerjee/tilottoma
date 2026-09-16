@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -156,7 +158,7 @@ function AdminDashboardContent() {
   const fetchStreets = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/contributions');
+      const res = await fetch('/api/admin/contributions', { cache: 'no-store' });
       if (res.status === 401) {
         router.push('/admin/login');
         return;
@@ -164,7 +166,12 @@ function AdminDashboardContent() {
       const data = await res.json();
       if (data.contributions) {
         setAllStreets(data.contributions);
-        // Do NOT auto-select a street! Maintain safe landing dashboard.
+        // Sync selectedStreet with latest updated status from server
+        setSelectedStreet((prev: any) => {
+          if (!prev) return null;
+          const fresh = data.contributions.find((s: any) => s.id === prev.id);
+          return fresh || prev;
+        });
       }
     } catch (error) {
       console.error(error);
@@ -492,6 +499,8 @@ function AdminDashboardContent() {
 
   // Save changes to existing street
   const handleSave = async (newStatus?: 'APPROVED' | 'PENDING') => {
+    if (!selectedStreet) return;
+
     const pointsToSave = alignmentMode === 'auto' && snappedPath.length >= 2 ? snappedPath : editablePoints;
 
     if (pointsToSave.length < 2) {
@@ -499,13 +508,15 @@ function AdminDashboardContent() {
       return;
     }
 
+    const targetStatus = newStatus || selectedStreet.status;
+
     setIsProcessing(true);
     try {
       const res = await fetch(`/api/admin/contributions/${selectedStreet.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: newStatus || selectedStreet.status,
+          status: targetStatus,
           name: editName,
           description: editDescription,
           points: pointsToSave,
@@ -513,7 +524,22 @@ function AdminDashboardContent() {
       });
 
       if (res.ok) {
-        alert(newStatus === 'APPROVED' ? 'Street approved & published to map!' : 'Street changes saved successfully!');
+        // Immediately update selectedStreet and allStreets state
+        setSelectedStreet((prev: any) => prev ? ({
+          ...prev,
+          status: targetStatus,
+          name: editName,
+          description: editDescription,
+        }) : null);
+
+        setAllStreets((prev: any[]) => prev.map(s => s.id === selectedStreet.id ? {
+          ...s,
+          status: targetStatus,
+          name: editName,
+          description: editDescription,
+        } : s));
+
+        alert(targetStatus === 'APPROVED' ? 'Street approved & published to map!' : 'Street changes saved successfully!');
         await fetchStreets();
         router.refresh();
       } else {
@@ -588,6 +614,20 @@ function AdminDashboardContent() {
       });
 
       if (res.ok) {
+        setSelectedStreet((prev: any) => prev ? ({
+          ...prev,
+          status: 'REJECTED',
+          name: editName,
+          description: editDescription,
+        }) : null);
+
+        setAllStreets((prev: any[]) => prev.map(s => s.id === selectedStreet.id ? {
+          ...s,
+          status: 'REJECTED',
+          name: editName,
+          description: editDescription,
+        } : s));
+
         alert('Contribution marked as Rejected.');
         await fetchStreets();
         setActiveTab('REJECTED');

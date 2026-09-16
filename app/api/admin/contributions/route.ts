@@ -3,6 +3,9 @@ import { getAllStreetsForAdmin } from '@/db/queries';
 import { db } from '@/db';
 import { streets, sources } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
@@ -70,6 +73,10 @@ export async function POST(req: Request) {
         );
       }
     }
+
+    // Revalidate public map and admin console cache
+    revalidatePath('/', 'layout');
+    revalidatePath('/admin');
 
     return NextResponse.json({ success: true, id: insertedStreet.id });
   } catch (error) {
