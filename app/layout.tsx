@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Kolkata Street History",
+  title: "Tilottoma - A tribute to Kolkata",
   description: "Discover the history behind Kolkata's streets",
 };
 
