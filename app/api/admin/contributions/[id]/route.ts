@@ -16,7 +16,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 
-    const [existing] = await db.select().from(streets).where(eq(streets.id, id));
+    // Explicitly select columns to avoid raw PostGIS geometry deserialization error
+    const [existing] = await db.select({
+      id: streets.id,
+      name: streets.name,
+      slug: streets.slug,
+      status: streets.status,
+    }).from(streets).where(eq(streets.id, id));
+
     if (!existing) {
       return NextResponse.json({ error: 'Street not found' }, { status: 404 });
     }
@@ -42,10 +49,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       updateData.geom = sql`ST_GeomFromEWKT(${geomString})`;
     }
 
+    // Explicitly return safe columns to avoid Drizzle's Unsupported geometry type error
     const [updated] = await db.update(streets)
       .set(updateData)
       .where(eq(streets.id, id))
-      .returning();
+      .returning({
+        id: streets.id,
+        name: streets.name,
+        slug: streets.slug,
+        status: streets.status,
+      });
 
     // Trigger instant cache revalidation across the deployment
     revalidatePath('/', 'layout');
@@ -66,7 +79,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const resolvedParams = await params;
     const { id } = resolvedParams;
 
-    const [existing] = await db.select().from(streets).where(eq(streets.id, id));
+    // Explicitly select id and slug to avoid geometry deserialization error
+    const [existing] = await db.select({
+      id: streets.id,
+      slug: streets.slug,
+    }).from(streets).where(eq(streets.id, id));
 
     await db.delete(historicalNames).where(eq(historicalNames.streetId, id));
     await db.delete(sources).where(eq(sources.streetId, id));
