@@ -17,6 +17,9 @@ export const metadata = {
   description: "Discover the history behind Kolkata's streets",
 };
 
+import { AuthProvider } from "@/context/AuthContext";
+import AuthModal from "@/components/Auth/AuthModal";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,7 +28,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        {children}
+        <AuthProvider>
+          {children}
+          <AuthModal />
+        </AuthProvider>
       </body>
     </html>
   );
