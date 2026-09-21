@@ -4,11 +4,25 @@ import { streets, sources } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
+import { getServerSession, canContribute } from '@/lib/auth';
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const { name, description, sources: rawSources, points } = await req.json();
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Login is mandatory to contribute streets.' }, { status: 401 });
+    }
+
+    if (!canContribute(session.role)) {
+      return NextResponse.json(
+        { error: 'Verified Contributor status is required to submit street contributions. Please request Contributor status.' },
+        { status: 403 }
+      );
+    }
+
+    const { name, description, sources: rawSources, points, tags, images, blogLinks } = await req.json();
 
     if (!name || !points || points.length < 2) {
       return NextResponse.json({ error: 'Name and at least 2 points are required' }, { status: 400 });
@@ -18,17 +32,21 @@ export async function POST(req: Request) {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now().toString().slice(-4);
 
     // Format points to MULTILINESTRING format
-    // PostGIS format is MULTILINESTRING((lng lat, lng lat, ...))
     const coordsStr = points.map((p: { lat: number; lng: number }) => `${p.lng} ${p.lat}`).join(', ');
     const geomString = `SRID=4326;MULTILINESTRING((${coordsStr}))`;
 
-    // Insert street
+    // Insert street with contributor attribution
     const [insertedStreet] = await db.insert(streets).values({
       name,
       slug,
       description,
       geom: sql`ST_GeomFromEWKT(${geomString})`,
       status: 'PENDING',
+      contributedById: session.id,
+      contributorName: session.name,
+      tags: tags || [],
+      images: images || [],
+      blogLinks: blogLinks || [],
     }).returning({ id: streets.id });
 
     // Insert sources if any
