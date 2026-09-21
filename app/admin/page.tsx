@@ -16,6 +16,23 @@ import {
   MapControl,
   ControlPosition,
 } from '@vis.gl/react-google-maps';
+import RecommendationsReviewTab from '@/components/Admin/RecommendationsReviewTab';
+import UsersRbacTab from '@/components/Admin/UsersRbacTab';
+import {
+  Tag,
+  History,
+  Plus,
+  Trash2,
+  X,
+  Clock,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Compass,
+  Landmark,
+  Users,
+  Map as MapIcon,
+} from 'lucide-react';
 
 interface LatLng {
   lat: number;
@@ -99,8 +116,14 @@ function sampleWaypoints(intermediatePoints: LatLng[], maxCount = 12): LatLng[] 
 }
 
 function AdminDashboardContent() {
+  const [adminSection, setAdminSection] = useState<'streets' | 'recommendations' | 'users'>('streets');
+  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [autoOpenAddPlace, setAutoOpenAddPlace] = useState(false);
+  const [addPlaceStreetContext, setAddPlaceStreetContext] = useState<{ id: string; name: string } | null>(null);
   const [allStreets, setAllStreets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const pendingStreetsCount = useMemo(() => allStreets.filter((s) => s.status === 'PENDING').length, [allStreets]);
   
   // Navigation & Selection state
   // When selectedStreet is null and isCreatingNew is false, we show the Dashboard Landing Overview!
@@ -123,6 +146,20 @@ function AdminDashboardContent() {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [newStreetSources, setNewStreetSources] = useState('');
+  
+  // Area / Thematic tags state
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+
+  // Historical / Former names state
+  const [editHistoricalNames, setEditHistoricalNames] = useState<{
+    id?: string;
+    name: string;
+    validFrom: string;
+    validUntil: string;
+    explanation: string;
+    source: string;
+  }[]>([]);
   
   // Editable geometry pins (Start, Middle Waypoints, End)
   const [editablePoints, setEditablePoints] = useState<LatLng[]>([]);
@@ -186,6 +223,20 @@ function AdminDashboardContent() {
     setSelectedStreet(street);
     setEditName(street.name || '');
     setEditDescription(street.description || '');
+    setEditTags(Array.isArray(street.tags) ? street.tags : []);
+    setTagInput('');
+    setEditHistoricalNames(
+      Array.isArray(street.historicalNames)
+        ? street.historicalNames.map((h: any) => ({
+            id: h.id,
+            name: h.name || '',
+            validFrom: h.validFrom || '',
+            validUntil: h.validUntil || '',
+            explanation: h.explanation || '',
+            source: h.source || '',
+          }))
+        : []
+    );
     const points = getPolylinePaths(street.geom);
     setEditablePoints(points);
     setOriginalPoints(points);
@@ -203,6 +254,9 @@ function AdminDashboardContent() {
     setEditName('');
     setEditDescription('');
     setNewStreetSources('');
+    setEditTags([]);
+    setTagInput('');
+    setEditHistoricalNames([]);
     setEditablePoints([]);
     setOriginalPoints([]);
     setSnappedPath([]);
@@ -210,6 +264,38 @@ function AdminDashboardContent() {
     setAutoStatus('idle');
     setAutoRoadName('');
     setAlignmentMode('auto');
+  };
+
+  // Tag manipulation helpers
+  const handleAddTag = (rawTag: string) => {
+    const cleaned = rawTag.trim().replace(/^#+/, '');
+    if (!cleaned) return;
+    if (!editTags.includes(cleaned)) {
+      setEditTags([...editTags, cleaned]);
+    }
+    setTagInput('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setEditTags(editTags.filter((t) => t !== tagToRemove));
+  };
+
+  // Historical era manipulation helpers
+  const handleAddHistoricalEra = () => {
+    setEditHistoricalNames([
+      ...editHistoricalNames,
+      { name: '', validFrom: '', validUntil: '', explanation: '', source: '' },
+    ]);
+  };
+
+  const handleUpdateHistoricalEra = (index: number, field: string, value: string) => {
+    setEditHistoricalNames((prev) =>
+      prev.map((era, i) => (i === index ? { ...era, [field]: value } : era))
+    );
+  };
+
+  const handleRemoveHistoricalEra = (index: number) => {
+    setEditHistoricalNames((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Exit back to safe Dashboard Landing
@@ -519,6 +605,8 @@ function AdminDashboardContent() {
           status: targetStatus,
           name: editName,
           description: editDescription,
+          tags: editTags,
+          historicalNames: editHistoricalNames,
           points: pointsToSave,
         }),
       });
@@ -530,6 +618,8 @@ function AdminDashboardContent() {
           status: targetStatus,
           name: editName,
           description: editDescription,
+          tags: editTags,
+          historicalNames: editHistoricalNames,
         }) : null);
 
         setAllStreets((prev: any[]) => prev.map(s => s.id === selectedStreet.id ? {
@@ -537,6 +627,8 @@ function AdminDashboardContent() {
           status: targetStatus,
           name: editName,
           description: editDescription,
+          tags: editTags,
+          historicalNames: editHistoricalNames,
         } : s));
 
         alert(targetStatus === 'APPROVED' ? 'Street approved & published to map!' : 'Street changes saved successfully!');
@@ -574,6 +666,8 @@ function AdminDashboardContent() {
         body: JSON.stringify({
           name: editName.trim(),
           description: editDescription.trim(),
+          tags: editTags,
+          historicalNames: editHistoricalNames,
           sources: newStreetSources,
           points: pointsToSave,
           status,
@@ -610,6 +704,8 @@ function AdminDashboardContent() {
           status: 'REJECTED',
           name: editName,
           description: editDescription,
+          tags: editTags,
+          historicalNames: editHistoricalNames,
         }),
       });
 
@@ -619,6 +715,8 @@ function AdminDashboardContent() {
           status: 'REJECTED',
           name: editName,
           description: editDescription,
+          tags: editTags,
+          historicalNames: editHistoricalNames,
         }) : null);
 
         setAllStreets((prev: any[]) => prev.map(s => s.id === selectedStreet.id ? {
@@ -626,6 +724,8 @@ function AdminDashboardContent() {
           status: 'REJECTED',
           name: editName,
           description: editDescription,
+          tags: editTags,
+          historicalNames: editHistoricalNames,
         } : s));
 
         alert('Contribution marked as Rejected.');
@@ -686,69 +786,245 @@ function AdminDashboardContent() {
   const isEditingOrCreating = selectedStreet !== null || isCreatingNew;
 
   return (
-    <div className="min-h-screen bg-zinc-100 flex flex-col font-sans pb-12">
-      {/* Top Navigation Bar */}
-      <header className="bg-white border-b border-zinc-200 px-4 md:px-6 py-3.5 flex items-center justify-between shadow-xs sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="font-serif text-2xl font-bold tracking-tight text-zinc-900 hover:text-blue-600 transition-colors">
-            Tilottoma
-          </Link>
-          <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-            Admin Console
-          </span>
-
-          {isEditingOrCreating ? (
-            <button
-              onClick={backToDashboard}
-              className="ml-3 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-100 text-zinc-800 transition-all cursor-pointer shadow-2xs"
-            >
-              <span>← Back to Dashboard</span>
-            </button>
+    <div className="flex h-screen w-screen overflow-hidden bg-zinc-100 font-sans text-zinc-900">
+      {/* 1. LEFT COLLAPSIBLE UNIFIED SIDEBAR */}
+      <aside
+        className={`bg-zinc-900 text-zinc-100 shrink-0 border-r border-zinc-800 flex flex-col z-40 transition-all duration-300 ease-in-out ${
+          isNavCollapsed ? 'w-16' : 'w-64'
+        }`}
+      >
+        {/* Brand & Collapse Header */}
+        <div className="h-16 px-3.5 flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/40">
+          {!isNavCollapsed ? (
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0">
+                T
+              </div>
+              <div className="leading-tight truncate">
+                <span className="font-serif font-bold text-base tracking-tight text-white block">
+                  Tilottoma
+                </span>
+                <span className="text-[10px] font-mono text-amber-400 font-semibold uppercase tracking-wider block">
+                  Spatial Admin
+                </span>
+              </div>
+            </div>
           ) : (
-            <button
-              onClick={startCreateNew}
-              className="ml-3 flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer shadow-xs"
-            >
-              <span>＋ Add New Street</span>
-            </button>
+            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-md mx-auto">
+              T
+            </div>
           )}
 
-          {isEditingOrCreating && (
-            <button
-              onClick={() => setIsSidebarOpen(prev => !prev)}
-              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-600 transition-all cursor-pointer"
-              title={isSidebarOpen ? "Collapse street list" : "Expand street list"}
-            >
-              <span>{isSidebarOpen ? '◀ Hide Sidebar' : '▶ Show Sidebar'}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsNavCollapsed((prev) => !prev)}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+            title={isNavCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            {isNavCollapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Primary Navigation Menu */}
+        <nav className="flex-1 py-4 px-2 space-y-1.5 overflow-y-auto">
+          {/* Streets */}
           <button
-            onClick={fetchStreets}
-            className="text-xs text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer"
+            type="button"
+            onClick={() => {
+              setAdminSection('streets');
+              setSelectedStreet(null);
+              setIsCreatingNew(false);
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition-all cursor-pointer ${
+              adminSection === 'streets'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
+            }`}
+            title="Historical Streets & Corridors"
           >
-            ↻ Refresh
+            <Compass className="w-4 h-4 shrink-0" />
+            {!isNavCollapsed && (
+              <div className="flex-1 flex items-center justify-between text-left">
+                <span>Historical Streets</span>
+                {pendingStreetsCount > 0 && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-amber-400 text-zinc-950 rounded-full">
+                    {pendingStreetsCount}
+                  </span>
+                )}
+              </div>
+            )}
           </button>
+
+          {/* Places & Landmarks */}
+          <button
+            type="button"
+            onClick={() => {
+              setAdminSection('recommendations');
+              setSelectedStreet(null);
+              setIsCreatingNew(false);
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition-all cursor-pointer ${
+              adminSection === 'recommendations'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
+            }`}
+            title="Places & Heritage Spots"
+          >
+            <Landmark className="w-4 h-4 shrink-0" />
+            {!isNavCollapsed && (
+              <div className="flex-1 flex items-center justify-between text-left">
+                <span>Places & Spots</span>
+              </div>
+            )}
+          </button>
+
+          {/* Users & RBAC */}
+          <button
+            type="button"
+            onClick={() => {
+              setAdminSection('users');
+              setSelectedStreet(null);
+              setIsCreatingNew(false);
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition-all cursor-pointer ${
+              adminSection === 'users'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
+            }`}
+            title="Users & Access Control"
+          >
+            <Users className="w-4 h-4 shrink-0" />
+            {!isNavCollapsed && (
+              <div className="flex-1 flex items-center justify-between text-left">
+                <span>Users & RBAC</span>
+              </div>
+            )}
+          </button>
+
+          {/* Quick Action: Add Street */}
+          <div className="pt-3">
+            {!isNavCollapsed ? (
+              <button
+                type="button"
+                onClick={startCreateNew}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded-xl text-xs font-semibold border border-zinc-700/60 transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-blue-400" />
+                <span>Add Street Entry</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={startCreateNew}
+                className="w-full flex items-center justify-center p-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-all cursor-pointer"
+                title="Add New Street"
+              >
+                <Plus className="w-4 h-4 text-blue-400" />
+              </button>
+            )}
+          </div>
+        </nav>
+
+        {/* Footer Navigation / Controls */}
+        <div className="p-2 border-t border-zinc-800/80 space-y-1">
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-lg transition-colors"
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-colors"
+            title="View Public Map"
           >
-            <span>←</span> View Public Map
+            <MapIcon className="w-4 h-4 shrink-0 text-emerald-400" />
+            {!isNavCollapsed && <span>Public Map</span>}
           </Link>
+
           <button
-            onClick={handleLogout}
-            className="text-xs text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer"
+            type="button"
+            onClick={fetchStreets}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-colors cursor-pointer text-left"
+            title="Refresh Registry"
           >
-            Logout 🚪
+            <span className="w-4 text-center">↻</span>
+            {!isNavCollapsed && <span>Refresh Data</span>}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors cursor-pointer text-left"
+            title="Sign out of Console"
+          >
+            <span className="w-4 text-center">🚪</span>
+            {!isNavCollapsed && <span>Logout</span>}
           </button>
         </div>
-      </header>
+      </aside>
 
-      {/* Main Container */}
-      <main className="flex-1 w-full px-4 md:px-6 py-5 flex flex-col">
-        {loading ? (
+      {/* 2. MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Sleek Top Breadcrumb / Header */}
+        <header className="h-16 bg-white border-b border-zinc-200 px-4 md:px-6 flex items-center justify-between shrink-0 shadow-2xs z-30">
+          <div className="flex items-center gap-3">
+            <h2 className="font-serif font-bold text-lg text-zinc-900 capitalize">
+              {adminSection === 'streets'
+                ? isEditingOrCreating
+                  ? `Editing: ${selectedStreet?.name || 'New Street Corridor'}`
+                  : 'Historical Streets & Corridors'
+                : adminSection === 'recommendations'
+                ? 'Places & Landmarks Review'
+                : 'User Management & RBAC'}
+            </h2>
+
+            {isEditingOrCreating && (
+              <button
+                onClick={backToDashboard}
+                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border border-zinc-300 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 transition-all cursor-pointer"
+              >
+                <span>← Back to Dashboard</span>
+              </button>
+            )}
+
+            {isEditingOrCreating && (
+              <button
+                onClick={() => setIsSidebarOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-600 transition-all cursor-pointer"
+                title={isSidebarOpen ? 'Collapse list' : 'Expand list'}
+              >
+                <span>{isSidebarOpen ? '◀ Hide Sidebar' : '▶ Show Sidebar'}</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            {adminSection === 'streets' && !isEditingOrCreating && (
+              <span className="text-xs font-mono text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-lg">
+                Total: {allStreets.length} | Pending: {pendingStreetsCount}
+              </span>
+            )}
+          </div>
+        </header>
+
+        {/* Scrollable Body */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-zinc-100 flex flex-col">
+        {adminSection === 'recommendations' ? (
+          <div className="max-w-7xl w-full mx-auto">
+            <RecommendationsReviewTab
+              initialOpenAdd={autoOpenAddPlace}
+              initialStreetId={addPlaceStreetContext?.id}
+              initialStreetName={addPlaceStreetContext?.name}
+              onAddModalClosed={() => {
+                setAutoOpenAddPlace(false);
+                setAddPlaceStreetContext(null);
+              }}
+            />
+          </div>
+        ) : adminSection === 'users' ? (
+          <div className="max-w-7xl w-full mx-auto">
+            <UsersRbacTab />
+          </div>
+        ) : loading ? (
           <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 py-32 w-full">
             <div className="w-9 h-9 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
             <p className="text-sm font-medium">Loading streets from database...</p>
@@ -769,7 +1045,17 @@ function AdminDashboardContent() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                <button
+                  onClick={() => {
+                    setAdminSection('recommendations');
+                    setAutoOpenAddPlace(true);
+                    setAddPlaceStreetContext(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl font-bold text-sm bg-amber-600 hover:bg-amber-700 text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <span>＋</span> Add Place / Spot
+                </button>
                 <button
                   onClick={startCreateNew}
                   className="px-5 py-2.5 rounded-xl font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 cursor-pointer"
@@ -1164,16 +1450,34 @@ function AdminDashboardContent() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs font-medium text-zinc-600 bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200">
-                    <span>🟢 Start {editablePoints.length > 0 ? '✓' : '—'}</span>
-                    <span>•</span>
-                    <span>🔵 {middlePins.length} Middle Pins</span>
-                    <span>•</span>
-                    <span>🔴 End {editablePoints.length > 1 ? '✓' : '—'}</span>
-                    <span>•</span>
-                    <span className="font-semibold text-blue-700">
-                      {alignmentMode === 'auto' ? `🚗 Road Snapped (${currentPath.length} pts)` : `✍️ Manual (${editablePoints.length} pts)`}
-                    </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {!isCreatingNew && selectedStreet && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSection('recommendations');
+                          setAutoOpenAddPlace(true);
+                          setAddPlaceStreetContext({ id: selectedStreet.id, name: selectedStreet.name });
+                        }}
+                        className="px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+                        title="Add a heritage spot or landmark bound to this street"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Spot on this Corridor</span>
+                      </button>
+                    )}
+
+                    <div className="flex items-center gap-2 text-xs font-medium text-zinc-600 bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200">
+                      <span>🟢 Start {editablePoints.length > 0 ? '✓' : '—'}</span>
+                      <span>•</span>
+                      <span>🔵 {middlePins.length} Middle Pins</span>
+                      <span>•</span>
+                      <span>🔴 End {editablePoints.length > 1 ? '✓' : '—'}</span>
+                      <span>•</span>
+                      <span className="font-semibold text-blue-700">
+                        {alignmentMode === 'auto' ? `🚗 Road Snapped (${currentPath.length} pts)` : `✍️ Manual (${editablePoints.length} pts)`}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1240,6 +1544,248 @@ function AdminDashboardContent() {
                       className="w-full px-3.5 py-2 border border-zinc-300 rounded-xl text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-y"
                       placeholder="Add or refine historical context, colonial names, notable architecture..."
                     />
+                  </div>
+
+                  {/* Area-wise & Thematic Tags */}
+                  <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-amber-600" />
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-800">
+                            Area-wise & Thematic Tags
+                          </label>
+                          <p className="text-[11px] text-zinc-500">
+                            Assign locality zones and heritage themes to power map discovery and filtering
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-zinc-400">
+                        {editTags.length} active
+                      </span>
+                    </div>
+
+                    {/* Tag input and Add button */}
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-2 text-xs font-mono text-zinc-400">#</span>
+                        <input
+                          type="text"
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddTag(tagInput);
+                            }
+                          }}
+                          placeholder="Type tag (e.g. North Kolkata, Colonial, Dalhousie) and press Enter..."
+                          className="w-full pl-7 pr-3 py-1.5 text-xs border border-zinc-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-zinc-900"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddTag(tagInput)}
+                        className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Tag</span>
+                      </button>
+                    </div>
+
+                    {/* Active Tags list */}
+                    {editTags.length > 0 ? (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        {editTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-amber-300 text-amber-900 rounded-lg text-xs font-medium shadow-2xs group"
+                          >
+                            <span>#{tag}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTag(tag)}
+                              className="text-amber-500 hover:text-red-600 rounded p-0.5 transition-colors cursor-pointer"
+                              title={`Remove tag #${tag}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-400 italic">No tags assigned yet. Choose presets below or add custom tags above.</p>
+                    )}
+
+                    {/* Presets suggestions */}
+                    <div className="pt-2 border-t border-zinc-200/80">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500" />
+                        <span>Suggested Kolkata Presets:</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {[
+                          'Central Kolkata',
+                          'North Kolkata',
+                          'South Kolkata',
+                          'Dalhousie Square',
+                          'Colonial Heritage',
+                          'Bowbazar',
+                          'Chitpur',
+                          'Babu Culture',
+                          'Book Market',
+                          'Ghats & Riverfront',
+                        ].map((preset) => {
+                          const isActive = editTags.includes(preset);
+                          return (
+                            <button
+                              key={preset}
+                              type="button"
+                              disabled={isActive}
+                              onClick={() => handleAddTag(preset)}
+                              className={`px-2 py-0.5 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+                                isActive
+                                  ? 'bg-zinc-200 text-zinc-400 border border-transparent cursor-not-allowed'
+                                  : 'bg-white hover:bg-amber-100 text-zinc-600 hover:text-amber-900 border border-zinc-200'
+                              }`}
+                            >
+                              +{preset}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Historical Nomenclature & Old Names Management */}
+                  <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <History className="w-4 h-4 text-purple-600" />
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-800">
+                            Historical Nomenclature & Former Names
+                          </label>
+                          <p className="text-[11px] text-zinc-500">
+                            Document colonial, pre-independence, and vernacular naming eras for this street
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddHistoricalEra}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Former Name / Era</span>
+                      </button>
+                    </div>
+
+                    {editHistoricalNames.length === 0 ? (
+                      <div className="p-6 text-center bg-white rounded-xl border border-dashed border-zinc-300 text-xs text-zinc-400">
+                        No previous historical eras documented for this street.
+                        <p className="text-[11px] text-zinc-400 mt-1">
+                          Click "+ Add Former Name / Era" to add historical names (e.g. Clive Street, Avenue to the Fort).
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 pt-1">
+                        {editHistoricalNames.map((era, index) => (
+                          <div
+                            key={index}
+                            className="p-3.5 bg-white rounded-xl border border-zinc-200 shadow-2xs space-y-2.5 relative"
+                          >
+                            <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                              <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-purple-500" />
+                                <span>Historical Era #{index + 1}</span>
+                                {era.name && (
+                                  <span className="font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded text-[11px]">
+                                    {era.name}
+                                  </span>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveHistoricalEra(index)}
+                                className="p-1 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Remove this era"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                              <div className="sm:col-span-1">
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                                  Former Name *
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={era.name}
+                                  onChange={(e) => handleUpdateHistoricalEra(index, 'name', e.target.value)}
+                                  placeholder="e.g. Clive Street"
+                                  className="w-full px-2.5 py-1.5 text-xs border border-zinc-200 rounded-lg bg-zinc-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-zinc-900 font-medium"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                                  Valid From
+                                </label>
+                                <input
+                                  type="text"
+                                  value={era.validFrom}
+                                  onChange={(e) => handleUpdateHistoricalEra(index, 'validFrom', e.target.value)}
+                                  placeholder="e.g. 1757 or 18th Century"
+                                  className="w-full px-2.5 py-1.5 text-xs border border-zinc-200 rounded-lg bg-zinc-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-zinc-900"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                                  Valid Until
+                                </label>
+                                <input
+                                  type="text"
+                                  value={era.validUntil}
+                                  onChange={(e) => handleUpdateHistoricalEra(index, 'validUntil', e.target.value)}
+                                  placeholder="e.g. 1969 or Present"
+                                  className="w-full px-2.5 py-1.5 text-xs border border-zinc-200 rounded-lg bg-zinc-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-zinc-900"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                                Naming Context & Origin
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={era.explanation}
+                                onChange={(e) => handleUpdateHistoricalEra(index, 'explanation', e.target.value)}
+                                placeholder="Why was the street given this name? (e.g. Named in commemoration of Robert Clive after the Battle of Plassey...)"
+                                className="w-full px-2.5 py-1.5 text-xs border border-zinc-200 rounded-lg bg-zinc-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-zinc-900 resize-y"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                                Citation / Historical Source
+                              </label>
+                              <input
+                                type="text"
+                                value={era.source}
+                                onChange={(e) => handleUpdateHistoricalEra(index, 'source', e.target.value)}
+                                placeholder="e.g. A.K. Ray, A Short History of Calcutta, 1902; Calcutta Municipal Gazette"
+                                className="w-full px-2.5 py-1.5 text-xs border border-zinc-200 rounded-lg bg-zinc-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-zinc-900"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Interactive Street Geometry & Pin Control Section */}
@@ -1799,7 +2345,8 @@ function AdminDashboardContent() {
             </div>
           </div>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
