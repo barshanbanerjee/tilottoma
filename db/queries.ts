@@ -56,6 +56,7 @@ export async function getAllStreetsForAdmin() {
       slug: streets.slug,
       status: streets.status,
       description: streets.description,
+      tags: streets.tags,
       geom: sql<string>`ST_AsGeoJSON(ST_LineMerge(${streets.geom}))`,
       createdAt: streets.createdAt,
       updatedAt: streets.updatedAt,
